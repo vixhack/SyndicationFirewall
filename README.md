@@ -11,7 +11,7 @@
 
 ---
 
-## 1. The 30-Second Reviewer Summary
+## 1. Reviewer Summary
 
 ### The Trust Problem
 Decentralized protocols govern millions of dollars in retroactive grants (Gitcoin, Optimism RetroPGF), research bounties, and media publishing rewards conditioned on original creative or technical output. 
@@ -61,39 +61,6 @@ Traditional oracles can only compute SHA256 hashes of raw bytes. If a plagiarist
 - **Deployer**: `0xb3b09558183aec6c2ff5aa547163b77a9266010a`
 - **Deployment Transaction**: `0x0a20a69aa1bfad79dd0e107d47d75a906edaa15b5cd8f2a82e4aa99ffdeb1c09`
 - **Network**: GenLayer Studionet (Chain ID `61999`)
-
----
-
-## 4. Repository Structure
-
-```text
-SyndicationFirewall/
-├── contracts/
-│   └── syndication_firewall.py        # Canonical GenLayer Intelligent Contract
-├── docs/
-│   ├── CONSENSUS.md                   # Consensus model & non-deterministic bounds
-│   ├── SECURITY.md                    # SSRF defense, prompt injection mitigations
-│   ├── INTEGRATION.md                 # Downstream Solidity & GenLayer guides
-│   └── DEPLOYMENT.md                  # Studionet proof and transaction log
-├── fixtures/
-│   ├── canonical_article.md           # Sample original research fixture
-│   └── derivative_copy.md             # Sample copycat derivative fixture
-├── scripts/
-│   ├── preflight.py                   # AST, schema, and security linter
-│   └── deploy_studionet.py            # Reproducible deployment script
-├── tests/
-│   ├── conftest.py                    # Direct Mode environment patch & fixtures
-│   ├── direct/
-│   │   └── test_syndication_firewall.py # 14 Direct Mode unit tests
-│   └── integration/
-│       └── test_syndication_firewall_studionet.py # 5 live Studionet on-chain tests
-├── DECISION.md                        # Design rationale & primitive selection
-├── gltest.config.yaml                 # Network & test configuration
-├── requirements.txt                   # Production dependencies
-├── requirements-test.txt              # Test dependencies
-├── LICENSE                            # MIT License (vix)
-└── SUBMISSION.md                      # Ecosystem submission form summary
-```
 
 ---
 
