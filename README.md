@@ -58,7 +58,7 @@ Traditional oracles can only compute SHA256 hashes of raw bytes. If a plagiarist
 ## 3. Canonical Studionet Deployment
 
 - **Contract Address**: [`0xEF723bc4D197fDcDcda32e853783DedDd49429c6`](https://explorer-studio.genlayer.com/address/0xEF723bc4D197fDcDcda32e853783DedDd49429c6)
-- **Deployer**: `0xb3b09558183aec6c2ff5aa547163b77a9266010a` (`vixDeployer`)
+- **Deployer**: `0xb3b09558183aec6c2ff5aa547163b77a9266010a`
 - **Deployment Transaction**: `0x0a20a69aa1bfad79dd0e107d47d75a906edaa15b5cd8f2a82e4aa99ffdeb1c09`
 - **Network**: GenLayer Studionet (Chain ID `61999`)
 
