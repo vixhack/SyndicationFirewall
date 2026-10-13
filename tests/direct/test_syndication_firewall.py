@@ -1,8 +1,9 @@
-"""Direct Mode Adversarial Test Suite for SyndicationFirewall.
+"""Direct Mode Adversarial Test Suite for SyndicationFirewall v1.0.1.
 
 Author: vix
-Covers submission admission, SSRF rejection, bounds, non-deterministic web and LLM
-originality evaluations, fail-closed handling, and downstream clearance gates.
+Covers submission admission, SSRF rejection, bounds, independent licensing acquisition,
+discrete canonical consensus clearance outcomes (100, 85, 30, 0), strict threshold-binding,
+and fail-closed behavior under the Equivalence Principle.
 """
 
 import json
@@ -37,9 +38,28 @@ def test_submit_content_success(direct_vm, direct_deploy, direct_alice):
     assert sub["id"] == 1
     assert sub["title"] == "Decentralized Storage Market Dynamics"
     assert sub["canonical_url"] == "https://example.com/research/storage-paper.html"
+    assert sub["license_proof_url"] == ""
+    assert sub["syndication_id"] == ""
     assert sub["status"] == "PENDING"
     assert sub["active"] is True
     assert sub["latest_evaluation_id"] == 0
+
+
+def test_submit_content_with_licensing_evidence(direct_vm, direct_deploy, direct_alice):
+    contract = deploy_contract(direct_deploy)
+    direct_vm.sender = direct_alice
+
+    sub_id = contract.submit_content(
+        title="Syndicated Cryptography Review",
+        content="Authorized republication from IACR Crypto Wire.",
+        canonical_url="https://iacr.org/papers/crypto-2026.html",
+        license_proof_url="https://iacr.org/licenses/cc-by-4.0.html",
+        syndication_id="CC-BY-4.0",
+    )
+    assert sub_id == 1
+    sub = contract.get_submission(1)
+    assert sub["license_proof_url"] == "https://iacr.org/licenses/cc-by-4.0.html"
+    assert sub["syndication_id"] == "CC-BY-4.0"
 
 
 def test_submit_content_bounds_validation(direct_vm, direct_deploy):
@@ -81,7 +101,7 @@ def test_submit_content_bounds_validation(direct_vm, direct_deploy):
 def test_submit_content_invalid_url_and_ssrf(direct_vm, direct_deploy):
     contract = deploy_contract(direct_deploy)
 
-    # Non-HTTPS
+    # Non-HTTPS canonical URL
     with direct_vm.expect_revert("Only secure HTTPS URLs are permitted"):
         contract.submit_content(
             title="HTTP Test",
@@ -89,7 +109,7 @@ def test_submit_content_invalid_url_and_ssrf(direct_vm, direct_deploy):
             canonical_url="http://example.com/paper",
         )
 
-    # Localhost
+    # Localhost canonical URL
     with direct_vm.expect_revert("Prohibited host or IP in URL"):
         contract.submit_content(
             title="Localhost Attack",
@@ -97,7 +117,7 @@ def test_submit_content_invalid_url_and_ssrf(direct_vm, direct_deploy):
             canonical_url="https://localhost/secret.json",
         )
 
-    # Loopback IP
+    # Loopback IP canonical URL
     with direct_vm.expect_revert("Prohibited host or IP in URL"):
         contract.submit_content(
             title="Loopback Attack",
@@ -105,7 +125,7 @@ def test_submit_content_invalid_url_and_ssrf(direct_vm, direct_deploy):
             canonical_url="https://127.0.0.1/admin",
         )
 
-    # AWS/Cloud Metadata IP
+    # AWS/Cloud Metadata IP canonical URL
     with direct_vm.expect_revert("Prohibited host or IP in URL"):
         contract.submit_content(
             title="Metadata Attack",
@@ -113,8 +133,17 @@ def test_submit_content_invalid_url_and_ssrf(direct_vm, direct_deploy):
             canonical_url="https://169.254.169.254/latest/meta-data/",
         )
 
+    # SSRF on license_proof_url
+    with direct_vm.expect_revert("Prohibited host or IP in URL"):
+        contract.submit_content(
+            title="License SSRF Attack",
+            content="Valid content",
+            canonical_url="https://example.com/paper",
+            license_proof_url="https://192.168.1.1/internal-license",
+        )
 
-def test_evaluate_original_content(direct_vm, direct_deploy, direct_alice):
+
+def test_evaluate_original_content_binds_canonical_score_100(direct_vm, direct_deploy, direct_alice):
     contract = deploy_contract(direct_deploy)
     direct_vm.sender = direct_alice
 
@@ -131,9 +160,8 @@ def test_evaluate_original_content(direct_vm, direct_deploy, direct_alice):
     )
 
     llm_response = json.dumps({
-        "verdict": "ORIGINAL",
-        "originality_score": 92,
-        "is_derivative": False,
+        "verdict": "CLEARED_ORIGINAL",
+        "authorization_verified": False,
         "reasoning": "The submitted text discusses novel multi-agent consensus and has negligible semantic overlap with the PBFT reference.",
     })
     direct_vm.mock_llm(r".*", llm_response)
@@ -147,16 +175,19 @@ def test_evaluate_original_content(direct_vm, direct_deploy, direct_alice):
     assert sub["latest_evaluation_id"] == 1
 
     ev = contract.get_evaluation(eval_id)
-    assert ev["verdict"] == "ORIGINAL"
-    assert ev["originality_score"] == 92
+    assert ev["verdict"] == "CLEARED_ORIGINAL"
+    assert ev["originality_score"] == 100  # Discrete canonical score
     assert ev["is_derivative"] is False
+    assert ev["authorization_verified"] is False
     assert ev["evidence_status_code"] == 200
 
+    # Downstream clearance threshold binding
     assert contract.is_cleared(sub_id, 70) is True
-    assert contract.is_cleared(sub_id, 95) is False
+    assert contract.is_cleared(sub_id, 100) is True
+    assert contract.is_cleared(sub_id, 101) is False
 
 
-def test_evaluate_syndicated_content(direct_vm, direct_deploy, direct_alice):
+def test_evaluate_authorized_syndication_with_independent_licensing_evidence(direct_vm, direct_deploy, direct_alice):
     contract = deploy_contract(direct_deploy)
     direct_vm.sender = direct_alice
 
@@ -164,19 +195,24 @@ def test_evaluate_syndicated_content(direct_vm, direct_deploy, direct_alice):
         title="Syndicated Tech Dispatch",
         content="Published with authorization from Tech Wire. The latest developments in decentralized compute...",
         canonical_url="https://techwire.com/articles/compute-dispatch.html",
+        license_proof_url="https://techwire.com/licensing/republication-notice.html",
+        syndication_id="TECHWIRE-SYND-2026",
     )
 
     canonical_body = "The latest developments in decentralized compute show significant scaling improvements."
     direct_vm.mock_web(
-        r"techwire\.com/.*",
+        r"techwire\.com/articles/.*",
         {"status": 200, "body": canonical_body},
+    )
+    direct_vm.mock_web(
+        r"techwire\.com/licensing/.*",
+        {"status": 200, "body": "Tech Wire grants open republication under license identifier TECHWIRE-SYND-2026 with attribution."},
     )
 
     llm_response = json.dumps({
-        "verdict": "SYNDICATED",
-        "originality_score": 45,
-        "is_derivative": True,
-        "reasoning": "Legitimate syndication with clear attribution and licensing notice.",
+        "verdict": "CLEARED_AUTHORIZED_SYNDICATION",
+        "authorization_verified": True,
+        "reasoning": "Substantial textual overlap with canonical article, but independent licensing evidence successfully fetched and confirmed republication rights.",
     })
     direct_vm.mock_llm(r".*", llm_response)
 
@@ -187,11 +223,72 @@ def test_evaluate_syndicated_content(direct_vm, direct_deploy, direct_alice):
     assert sub["status"] == "CLEARED"
 
     ev = contract.get_evaluation(eval_id)
-    assert ev["verdict"] == "SYNDICATED"
+    assert ev["verdict"] == "CLEARED_AUTHORIZED_SYNDICATION"
+    assert ev["originality_score"] == 85  # Discrete canonical score
+    assert ev["is_derivative"] is False
+    assert ev["authorization_verified"] is True
+    assert ev["license_status_code"] == 200
+
+    # Downstream clearance threshold tests:
+    # Passes standard 70 threshold and 85 syndication threshold
     assert contract.is_cleared(sub_id, 70) is True
+    assert contract.is_cleared(sub_id, 85) is True
+    # Fails strict 90 threshold requiring original work
+    assert contract.is_cleared(sub_id, 90) is False
 
 
-def test_evaluate_plagiarized_content(direct_vm, direct_deploy, direct_alice):
+def test_evaluate_syndication_without_licensing_evidence_downgrades_to_derivative(direct_vm, direct_deploy, direct_alice):
+    """If submitter claims syndication or content derives from reference, but licensing evidence is missing or 404,
+    the contract must downgrade to FLAGGED_DERIVATIVE and refuse clearance.
+    """
+    contract = deploy_contract(direct_deploy)
+    direct_vm.sender = direct_alice
+
+    sub_id = contract.submit_content(
+        title="Unverified Syndication Attempt",
+        content="Verbatim text from source claiming syndication without proof.",
+        canonical_url="https://source.com/original.html",
+        license_proof_url="https://source.com/missing-license.html",
+        syndication_id="FAKED-ID",
+    )
+
+    direct_vm.mock_web(
+        r"source\.com/original\.html",
+        {"status": 200, "body": "Verbatim original text from the author."},
+    )
+    # License URL fails with 404
+    direct_vm.mock_web(
+        r"source\.com/missing-license\.html",
+        {"status": 404, "body": ""},
+    )
+
+    # Even if LLM attempted to say syndicated, the normalization logic enforces independent evidence
+    llm_response = json.dumps({
+        "verdict": "CLEARED_AUTHORIZED_SYNDICATION",
+        "authorization_verified": True,
+        "reasoning": "Claimed syndication.",
+    })
+    direct_vm.mock_llm(r".*", llm_response)
+
+    eval_id = contract.evaluate_originality(sub_id)
+    assert eval_id == 1
+
+    sub = contract.get_submission(sub_id)
+    assert sub["status"] == "FLAGGED"
+
+    ev = contract.get_evaluation(eval_id)
+    assert ev["verdict"] == "FLAGGED_DERIVATIVE"
+    assert ev["originality_score"] == 30
+    assert ev["is_derivative"] is True
+    assert ev["authorization_verified"] is False
+    assert ev["license_status_code"] == 404
+
+    # Downstream clearance must fail
+    assert contract.is_cleared(sub_id, 70) is False
+    assert contract.is_cleared(sub_id, 30) is False
+
+
+def test_evaluate_plagiarized_content_quarantines(direct_vm, direct_deploy, direct_alice):
     contract = deploy_contract(direct_deploy)
     direct_vm.sender = direct_alice
 
@@ -208,10 +305,9 @@ def test_evaluate_plagiarized_content(direct_vm, direct_deploy, direct_alice):
     )
 
     llm_response = json.dumps({
-        "verdict": "PLAGIARIZED",
-        "originality_score": 10,
-        "is_derivative": True,
-        "reasoning": "Substantial verbatim copying of the core algorithm without original commentary or attribution.",
+        "verdict": "QUARANTINED_PLAGIARISM",
+        "authorization_verified": False,
+        "reasoning": "Substantial verbatim copying of the core algorithm without original commentary or authorization.",
     })
     direct_vm.mock_llm(r".*", llm_response)
 
@@ -219,14 +315,15 @@ def test_evaluate_plagiarized_content(direct_vm, direct_deploy, direct_alice):
     assert eval_id == 1
 
     sub = contract.get_submission(sub_id)
-    assert sub["status"] == "FLAGGED"
+    assert sub["status"] == "QUARANTINED"
 
     ev = contract.get_evaluation(eval_id)
-    assert ev["verdict"] == "PLAGIARIZED"
-    assert ev["originality_score"] == 10
+    assert ev["verdict"] == "QUARANTINED_PLAGIARISM"
+    assert ev["originality_score"] == 0
     assert ev["is_derivative"] is True
+    assert ev["authorization_verified"] is False
 
-    # Downstream gate blocks payment/release
+    # Downstream gate blocks completely
     assert contract.is_cleared(sub_id, 50) is False
     assert contract.is_cleared(sub_id, 0) is False
 
@@ -255,8 +352,6 @@ def test_evaluate_unreachable_reference_fails_closed(direct_vm, direct_deploy):
     assert ev["verdict"] == "UNAVAILABLE"
     assert ev["originality_score"] == 0
     assert ev["evidence_status_code"] == 404
-
-    # Fail closed
     assert contract.is_cleared(sub_id, 0) is False
 
 
@@ -286,6 +381,74 @@ def test_evaluate_malformed_llm_output_fails_closed(direct_vm, direct_deploy):
     assert ev["originality_score"] == 0
     assert ev["is_derivative"] is True
     assert contract.is_cleared(sub_id, 0) is False
+
+
+def test_validate_equivalence_exact_consensus_agreement(direct_deploy):
+    contract = deploy_contract(direct_deploy)
+
+    p1 = {
+        "verdict": "CLEARED_ORIGINAL",
+        "originality_score": 100,
+        "is_derivative": False,
+        "authorization_verified": False,
+        "reasoning": "Identical appraisal.",
+    }
+    p2 = {
+        "verdict": "CLEARED_ORIGINAL",
+        "originality_score": 100,
+        "is_derivative": False,
+        "authorization_verified": False,
+        "reasoning": "Different phrasing reasoning.",
+    }
+    # Identical canonical outcome and score agrees
+    assert contract.validate_equivalence(json.dumps(p1), json.dumps(p2)) is True
+
+    # Rejection of score drift across threshold (e.g. 100 vs 85)
+    p_drift = dict(p1)
+    p_drift["verdict"] = "CLEARED_AUTHORIZED_SYNDICATION"
+    p_drift["originality_score"] = 85
+    assert contract.validate_equivalence(json.dumps(p1), json.dumps(p_drift)) is False
+
+    # Rejection of clearance outcome divergence
+    p_flagged = {
+        "verdict": "FLAGGED_DERIVATIVE",
+        "originality_score": 30,
+        "is_derivative": True,
+        "authorization_verified": False,
+    }
+    assert contract.validate_equivalence(json.dumps(p1), json.dumps(p_flagged)) is False
+
+
+def test_update_licensing_evidence_permissions_and_reset(direct_vm, direct_deploy, direct_alice, direct_bob):
+    contract = deploy_contract(direct_deploy)
+    direct_vm.sender = direct_alice
+
+    sub_id = contract.submit_content(
+        title="Licensing Updatable Article",
+        content="Article text waiting for licensing agreement.",
+        canonical_url="https://source.com/article.html",
+    )
+
+    # Bob attempts update -> reverts
+    direct_vm.sender = direct_bob
+    with direct_vm.expect_revert("Only submitter can update licensing evidence"):
+        contract.update_licensing_evidence(
+            sub_id,
+            "https://source.com/license-proof.html",
+            "NEW-SYND-2026",
+        )
+
+    # Alice updates -> succeeds and resets status
+    direct_vm.sender = direct_alice
+    contract.update_licensing_evidence(
+        sub_id,
+        "https://source.com/license-proof.html",
+        "NEW-SYND-2026",
+    )
+    sub = contract.get_submission(sub_id)
+    assert sub["license_proof_url"] == "https://source.com/license-proof.html"
+    assert sub["syndication_id"] == "NEW-SYND-2026"
+    assert sub["status"] == "PENDING"
 
 
 def test_update_canonical_url_permissions_and_reset(direct_vm, direct_deploy, direct_alice, direct_bob):
@@ -365,9 +528,8 @@ def test_latest_verdict_view(direct_vm, direct_deploy):
         {"status": 200, "body": "Reference body"},
     )
     llm_response = json.dumps({
-        "verdict": "ORIGINAL",
-        "originality_score": 88,
-        "is_derivative": False,
+        "verdict": "CLEARED_ORIGINAL",
+        "authorization_verified": False,
         "reasoning": "High originality.",
     })
     direct_vm.mock_llm(r".*", llm_response)
@@ -375,8 +537,8 @@ def test_latest_verdict_view(direct_vm, direct_deploy):
     contract.evaluate_originality(sub_id)
 
     verdict, score, is_deriv = contract.latest_verdict(sub_id)
-    assert verdict == "ORIGINAL"
-    assert score == 88
+    assert verdict == "CLEARED_ORIGINAL"
+    assert score == 100
     assert is_deriv is False
 
 

@@ -39,11 +39,13 @@ def run_checks():
         "submit_content": "write",
         "evaluate_originality": "write",
         "update_canonical_url": "write",
+        "update_licensing_evidence": "write",
         "archive_submission": "write",
         "get_submission": "view",
         "get_evaluation": "view",
         "latest_verdict": "view",
         "is_cleared": "view",
+        "validate_equivalence": "view",
         "get_submission_count": "view",
         "get_evaluation_count": "view",
     }
